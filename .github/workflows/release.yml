@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 jobs:
   build:
@@ -13,45 +13,68 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Use Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-          cache: 'pnpm'
+      - name: Install pixlet
+        run: |
+          # Get the latest release version
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/tidbyt/pixlet/releases/latest | grep -o '"tag_name": "v[^"]*' | cut -d'"' -f4)
 
-      - name: Install dependencies
-        run: pnpm install
+          if [ -z "$LATEST_VERSION" ]; then
+            echo "Failed to get latest version. Using fallback version v0.34.0"
+            LATEST_VERSION="v0.34.0"
+          fi
 
-      - name: Build
-        run: pnpm run build
+          echo "Installing pixlet $LATEST_VERSION..."
 
-      - name: Upload dist artifact
+          # Download the archive
+          curl -LO "https://github.com/tidbyt/pixlet/releases/download/$LATEST_VERSION/pixlet_${LATEST_VERSION#v}_linux_amd64.tar.gz"
+
+          # Unpack the archive
+          tar -xzf "pixlet_${LATEST_VERSION#v}_linux_amd64.tar.gz"
+
+          # Ensure the binary is executable
+          chmod +x ./pixlet
+
+          # Move the binary into your path
+          sudo mv pixlet /usr/local/bin/pixlet
+
+          # Clean up the downloaded archive
+          rm -f "pixlet_${LATEST_VERSION#v}_linux_amd64.tar.gz"
+
+          echo "pixlet $LATEST_VERSION installed successfully!"
+          pixlet version
+
+      - name: Build.sh
+        run: |
+          if [ ! -f build.sh ]; then
+            echo "build.sh not found!"
+            exit 1
+          fi
+
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Upload output artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dist
-          path: dist/**
+          name: output
+          path: output/*.h
 
   create_release:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Download dist artifact
+      - name: Download output artifact
         uses: actions/download-artifact@v4
         with:
-          path: ./dist
-
-      - name: Print directory structure
-        run: |
-          echo "Directory structure after downloading artifact:"
-          tree ./dist
+          path: ./output
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          artifacts: dist/dist/_esp32/static_files.h
+          artifacts: output/**
           tag: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
           name: Release ${{ github.ref_name }}
