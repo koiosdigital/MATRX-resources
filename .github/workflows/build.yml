@@ -1,0 +1,54 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - "**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pixlet
+        run: |
+          # Get the latest release version
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/tidbyt/pixlet/releases/latest | grep -o '"tag_name": "v[^"]*' | cut -d'"' -f4)
+
+          if [ -z "$LATEST_VERSION" ]; then
+            echo "Failed to get latest version. Using fallback version v0.34.0"
+            LATEST_VERSION="v0.34.0"
+          fi
+
+          echo "Installing pixlet $LATEST_VERSION..."
+
+          # Download the archive
+          curl -LO "https://github.com/tidbyt/pixlet/releases/download/$LATEST_VERSION/pixlet_${LATEST_VERSION#v}_linux_amd64.tar.gz"
+
+          # Unpack the archive
+          tar -xzf "pixlet_${LATEST_VERSION#v}_linux_amd64.tar.gz"
+
+          # Ensure the binary is executable
+          chmod +x ./pixlet
+
+          # Move the binary into your path
+          sudo mv pixlet /usr/local/bin/pixlet
+
+          # Clean up the downloaded archive
+          rm -f "pixlet_${LATEST_VERSION#v}_linux_amd64.tar.gz"
+
+          echo "pixlet $LATEST_VERSION installed successfully!"
+          pixlet version
+
+      - name: Build.sh
+        run: |
+          if [ ! -f build.sh ]; then
+            echo "build.sh not found!"
+            exit 1
+          fi
+
+          chmod +x build.sh
+          ./build.sh
