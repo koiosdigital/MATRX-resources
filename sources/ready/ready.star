@@ -155,17 +155,28 @@ def create_cloud_animation(width, height):
                 clouds = create_moving_cloud(width, height, frame_idx, cloud)
                 cloud_elements.extend(clouds)
         
-        # Add "connecting" text with fade effect
+        # Add "ready" text with fade effect
         text_alpha = (math.sin(frame_idx * 0.2) + 1) / 2  # Slow pulse
         text_brightness = int(120 + 60 * text_alpha)
         hex_brightness = to_hex_string(text_brightness)
-        text_color = "#" + hex_brightness + hex_brightness + hex_brightness
+        hex_brightness_half = to_hex_string(math.floor(text_brightness/2))
+        text_color = "#" + (hex_brightness_half) + hex_brightness + hex_brightness_half
         
-        # Calculate text positioning - center both horizontally and vertically
-        text_content = "hello!"
-        # 6x13 font: approximately 6 pixels wide per character, 13 pixels tall
-        text_width = len(text_content) * 6  
-        text_height = 13
+        # Responsive font selection and accurate text centering
+        text_content = "ready"
+        font_name = "tom-thumb" if width < 32 or height < 32 else "6x13"
+        
+        # Calculate accurate text dimensions based on font
+        if font_name == "tom-thumb":
+            char_width = 4  # tom-thumb is approximately 4px wide per char
+            text_height = 5  # tom-thumb is 5px tall
+        else:
+            char_width = 6  # 6x13 is 6px wide per char
+            text_height = 13  # 6x13 is 13px tall
+        
+        text_width = len(text_content) * char_width
+        
+        # Center both horizontally and vertically
         text_x = max(0, math.floor((width - text_width) / 2))
         text_y = max(0, math.floor((height - text_height) / 2))
         
@@ -175,7 +186,7 @@ def create_cloud_animation(width, height):
                 child = render.Text(
                     content = text_content,
                     color = text_color,
-                    font = "6x13"
+                    font = font_name
                 ),
             )
         )

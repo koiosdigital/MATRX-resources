@@ -59,8 +59,8 @@ generate_header_file() {
     
     # Start header file
     cat > "$header_file" << EOF
-#ifndef ${width}X${height}_STATIC_H
-#define ${width}X${height}_STATIC_H
+#ifndef STATIC_RESOURCES_H
+#define STATIC_RESOURCES_H
 
 #include <stdint.h>
 #include <stddef.h>

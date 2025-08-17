@@ -162,7 +162,7 @@ def create_cloud_animation(width, height):
         text_color = "#" + hex_brightness + hex_brightness + hex_brightness
         
         # Calculate text positioning - center both horizontally and vertically
-        text_content = "hello!"
+        text_content = "connecting"
         # 6x13 font: approximately 6 pixels wide per character, 13 pixels tall
         text_width = len(text_content) * 6  
         text_height = 13
