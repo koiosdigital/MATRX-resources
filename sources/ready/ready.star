@@ -121,8 +121,8 @@ def create_cloud_animation(width, height):
             # Generate algorithmic cloud shape
             cloud_pattern = generate_cloud_shape(cloud_width, cloud_height, seed)
             
-            # Base color varies by layer
-            base_color = 140 + layer_idx * 30
+            # Base color varies by layer (darker clouds for better text contrast)
+            base_color = 80 + layer_idx * 20  # Reduced from 140 + layer_idx * 30
             
             cloud_instance = {
                 "start_x": start_x,
@@ -140,12 +140,12 @@ def create_cloud_animation(width, height):
     for frame_idx in range(num_frames):
         cloud_elements = []
         
-        # Background gradient (dark to light blue simulating sky)
+        # Background gradient (darker sky for better text contrast)
         cloud_elements.append(
             render.Box(
                 width = width,
                 height = height,
-                color = "#1a1a2e",  # Dark blue background
+                color = "#0a0a1a",  # Much darker blue background
             )
         )
         
@@ -157,7 +157,7 @@ def create_cloud_animation(width, height):
         
         # Add "ready" text with fade effect
         text_alpha = (math.sin(frame_idx * 0.2) + 1) / 2  # Slow pulse
-        text_brightness = int(120 + 60 * text_alpha)
+        text_brightness = int(200 + 55 * text_alpha)  # Brighter text (200-255 range)
         hex_brightness = to_hex_string(text_brightness)
         hex_brightness_half = to_hex_string(math.floor(text_brightness/2))
         text_color = "#" + (hex_brightness_half) + hex_brightness + hex_brightness_half
