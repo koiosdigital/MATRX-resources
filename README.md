@@ -1,169 +1,165 @@
-# Pixlet
-[![Docs](https://img.shields.io/badge/docs-tidbyt.dev-blue?style=flat-square)](https://tidbyt.dev)
-[![Build & test](https://img.shields.io/github/workflow/status/tidbyt/pixlet/pixlet?style=flat-square)](https://github.com/tidbyt/pixlet/actions)
-[![Discourse](https://img.shields.io/discourse/status?server=https%3A%2F%2Fdiscuss.tidbyt.com&style=flat-square)](https://discuss.tidbyt.com/)
-[![Discord Server](https://img.shields.io/discord/928484660785336380?style=flat-square)](https://discord.gg/r45MXG4kZc)
-[![GoDoc](https://godoc.org/github.com/tidbyt/pixlet/runtime?status.svg)](https://godoc.org/github.com/tidbyt/pixlet/runtime)
+# MATRX Resources
 
-Pixlet is an app runtime and UX toolkit for highly-constrained displays.
-We use Pixlet to develop applets for [Tidbyt](https://tidbyt.com/), which has
-a 64x32 RGB LED matrix display:
+A build system for converting [Pixlet](https://github.com/tidbyt/pixlet) applets into embeddable C header files for MATRX embedded display systems.
 
-[![Example of a Tidbyt](docs/img/tidbyt_1.png)](https://tidbyt.com)
+## Overview
 
-Apps developed with Pixlet can be served in a browser, rendered as WebP or
-GIF animations, or pushed to a physical Tidbyt device.
+This project takes Pixlet `.star` applet source files and generates WebP animations at multiple resolutions, then converts them into C header files with embedded binary data. This allows embedded systems to display animations without requiring runtime file system access.
 
-## Documentation
+## Features
 
-> Hey! We have a new docs site! Check it out at [tidbyt.dev](https://tidbyt.dev). We'll be updating this repo in the coming weeks.
+- Renders Pixlet applets at multiple resolutions (64x32, 64x64, 128x64)
+- Automatically installs Pixlet if not present
+- Generates C header files with embedded WebP data
+- Provides convenient C API for accessing image resources by name
+- Zero-dependency static headers (no external files needed)
 
-- [Getting started](#getting-started)
-- [How it works](#how-it-works)
-- [In-depth tutorial](docs/tutorial.md)
-- [Widget reference](docs/widgets.md)
-- [Animation reference](docs/animation.md)
-- [Modules reference](docs/modules.md)
-- [Schema reference](docs/schema/schema.md)
-- [Our thoughts on authoring apps](docs/authoring_apps.md)
-- [Notes on the available fonts](docs/fonts.md)
-
-## Getting started
-
-### Install on macOS
+## Project Structure
 
 ```
-brew install tidbyt/tidbyt/pixlet
+MATRX-resources/
+├── sources/           # Pixlet .star source files
+│   ├── boot/
+│   ├── check_updates/
+│   ├── connecting_cloud/
+│   ├── connecting_wifi/
+│   ├── factory_reset_hold/
+│   ├── factory_reset_success/
+│   ├── keygen/
+│   ├── ready/
+│   └── setup/
+├── output/            # Generated files
+│   ├── 64x32/        # 64x32 WebP files
+│   ├── 64x64/        # 64x64 WebP files
+│   ├── 128x64/       # 128x64 WebP files
+│   ├── 64x32_static.h
+│   ├── 64x64_static.h
+│   └── 128x64_static.h
+└── build.sh          # Build script
 ```
 
-### Install on Linux
+## Requirements
 
-Download the `pixlet` binary from [the latest release][1].
+- Bash
+- curl
+- xxd
+- sed
+- Pixlet (automatically installed by build script if not present)
 
-Alternatively you can [build from source](docs/BUILD.md).
+## Usage
 
-[1]: https://github.com/tidbyt/pixlet/releases/latest
+### Building Resources
 
-### Hello, World!
+Run the build script to process all Pixlet applets:
 
-Pixlet applets are written in a simple, Python-like language called
-Starlark. Here's the venerable Hello World program:
+```bash
+./build.sh
+```
+
+This will:
+1. Check for Pixlet installation (install if missing)
+2. Render each `.star` file at all supported resolutions
+3. Generate WebP animation files
+4. Create C header files with embedded data
+
+### Using Generated Headers
+
+Include the appropriate header file in your C/C++ project:
+
+```c
+#include "64x32_static.h"
+
+// Get image data by name
+const uint8_t* data;
+size_t size;
+if (get_image_data("boot", &data, &size)) {
+    // Use the WebP data
+    display_webp(data, size);
+}
+
+// Get dimensions
+int width, height;
+get_image_dimensions(&width, &height);
+
+// List available images
+const char* names[32];
+size_t count = list_available_images(names, 32);
+for (size_t i = 0; i < count; i++) {
+    printf("Available: %s\n", names[i]);
+}
+```
+
+## Available Applets
+
+- `boot` - Boot animation
+- `check_updates` - Update checking indicator
+- `connecting_cloud` - Cloud connection animation
+- `connecting_wifi` - WiFi connection animation
+- `factory_reset_hold` - Factory reset hold indicator
+- `factory_reset_success` - Factory reset success animation
+- `keygen` - Key generation animation
+- `ready` - Ready state indicator
+- `setup` - Setup mode animation
+
+## Adding New Applets
+
+1. Create a new directory in `sources/` with your applet name
+2. Add a `.star` file with your Pixlet code
+3. Run `./build.sh` to generate resources
+
+Example Pixlet applet:
 
 ```starlark
 load("render.star", "render")
-def main():
-    return render.Root(
-        child = render.Text("Hello, World!")
-    )
-```
-
-Render and serve it with:
-
-```console
-curl https://raw.githubusercontent.com/tidbyt/pixlet/main/examples/hello_world/hello_world.star | \
-  pixlet serve /dev/stdin
-```
-
-You can view the result by navigating to [http://localhost:8080][3]:
-
-![](docs/img/tutorial_1.gif)
-
-[3]: http://localhost:8080
-
-## How it works
-
-Pixlet scripts are written in a simple, Python-like language called
-[Starlark](https://github.com/google/starlark-go/). The scripts can
-retrieve data over HTTP, transform it and use a collection of
-_Widgets_ to describe how the data should be presented visually.
-
-The Pixlet CLI runs these scripts and renders the result as a WebP
-or GIF animation. You can view the animation in your browser, save
-it, or even push it to a Tidbyt device with `pixlet push`.
-
-### Example: A Clock App
-
-This applet accepts a `timezone` parameter and produces a two frame
-animation displaying the current time with a blinking ':' separator
-between the hour and minute components.
-
-```starlark
-load("render.star", "render")
-load("time.star", "time")
 
 def main(config):
-    timezone = config.get("timezone") or "America/New_York"
-    now = time.now().in_location(timezone)
-
     return render.Root(
-        delay = 500,
-        child = render.Box(
-            child = render.Animation(
-                children = [
-                    render.Text(
-                        content = now.format("3:04 PM"),
-                        font = "6x13",
-                    ),
-                    render.Text(
-                        content = now.format("3 04 PM"),
-                        font = "6x13",
-                    ),
-                ],
-            ),
-        ),
+        child = render.Text("Hello MATRX!")
     )
 ```
 
-Here's the resulting image:
+## Output Files
 
-![](docs/img/clock.gif)
+### WebP Files
+Generated animations in WebP format for each resolution.
 
-### Example: A Bitcoin Tracker
+### Header Files
+Each resolution gets a header file (`{width}x{height}_static.h`) containing:
+- Image data as byte arrays
+- Image metadata (size, dimensions)
+- Helper functions for accessing resources
+- Complete image registry
 
-Applets can get information from external data sources. For example,
-here is a Bitcoin price tracker:
+## API Reference
 
-![](docs/img/tutorial_4.gif)
+### Functions
 
-Read the [in-depth tutorial](docs/tutorial.md) to learn how to
-make an applet like this.
+```c
+// Get image data by name
+int get_image_data(const char* name, const uint8_t** data, size_t* size);
 
-## Push to a Tidbyt
+// Get image dimensions for this resolution
+void get_image_dimensions(int* width, int* height);
 
-If you have a Tidbyt, `pixlet` can push apps directly to it. For example,
-to show the Bitcoin tracker on your Tidbyt:
-
-```console
-# render the bitcoin example
-pixlet render examples/bitcoin/bitcoin.star
-
-# login to your Tidbyt account
-pixlet login
-
-# list available Tidbyt devices
-pixlet devices
-
-# push to your favorite Tidbyt
-pixlet push <YOUR DEVICE ID> examples/bitcoin/bitcoin.webp
+// List all available image names
+size_t list_available_images(const char** names, size_t max_names);
 ```
 
-To get the ID for a device, run `pixlet devices`. Alternatively, you can
-open the settings for the device in the Tidbyt app on your phone, and tap **Get API key**.
+### Structures
 
-If all goes well, you should see the Bitcoin tracker appear on your Tidbyt:
-
-![](docs/img/tidbyt_2.jpg)
-
-## Push as an Installation
-Pushing an applet to your Tidbyt without an installation ID simply displays your applet one time. If you would like your applet to continously display as part of the rotation, add an installation ID to the push command:
-
-```console
-pixlet render examples/bitcoin/bitcoin.star
-pixlet push --installation-id <INSTALLATION ID> <YOUR DEVICE ID> examples/bitcoin/bitcoin.webp
+```c
+typedef struct {
+    const char* name;      // Image name (without .webp extension)
+    const uint8_t* data;   // WebP binary data
+    size_t size;           // Size of data in bytes
+} image_info_t;
 ```
 
-For example, if we set the `installationID` to "Bitcoin", it would appear in the mobile app as follows:
+## License
 
-![](docs/img/mobile_1.jpg)
+See [LICENSE.txt](LICENSE.txt)
 
-**Note:** `pixlet render` executes your Starlark code and generates a WebP image. `pixlet push` deploys the generated WebP image to your device. You'll need to repeat this process if you want to keep the app updated. You can also create [Community Apps](https://github.com/tidbyt/community) that run on Tidbyt’s servers and update automatically.
+## Related Projects
+
+- [Pixlet](https://github.com/tidbyt/pixlet) - App runtime and UX toolkit for constrained displays
+- [Tidbyt](https://tidbyt.com/) - Smart display that inspired Pixlet
