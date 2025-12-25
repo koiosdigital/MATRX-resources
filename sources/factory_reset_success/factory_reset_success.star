@@ -11,61 +11,61 @@ def to_hex_string(value):
         value = 0
     elif value > 255:
         value = 255
-    
+
     hex_chars = "0123456789abcdef"
     high = math.floor(value / 16)
     low = value % 16
     return hex_chars[high] + hex_chars[low]
 
-
 def main(config):
     width = int(config.str("width", DEFAULT_WIDTH))
     height = int(config.str("height", DEFAULT_HEIGHT))
-    
-    # Create cloud animation frames
-    cloud_frames = create_cloud_animation(width, height)
-    
+
+    frames = create_success_animation(width, height)
+
     return render.Root(
-        delay = 120,  # 120ms per frame for smooth cloud drift
+        delay = 80,  # 80ms per frame
         child = render.Animation(
-            children = cloud_frames,
+            children = frames,
         ),
     )
 
-def create_cloud_animation(width, height):
-    """Creates update checking animation with download progress and arrows"""
+def create_success_animation(width, height):
+    """Creates factory reset success animation with checkmark and expanding rings"""
     frames = []
-    num_frames = 60
+    num_frames = 30
 
     for frame_idx in range(num_frames):
         elements = []
 
-        # Dark purple/blue background
+        # Dark green background
         elements.append(
             render.Box(
                 width = width,
                 height = height,
-                color = "#0a0014",
+                color = "#001a00",
             )
         )
 
-        # Animated download arrow
-        elements.extend(create_download_arrow(width, height, frame_idx))
+        # Expanding success rings
+        if frame_idx < 20:
+            elements.extend(create_success_rings(width, height, frame_idx))
 
-        # Text with animated ellipsis
+        # Success text
         font_name = "tom-thumb" if width < 32 or height < 32 else "6x13"
         char_width = 4 if font_name == "tom-thumb" else 6
         text_height = 5 if font_name == "tom-thumb" else 13
 
-        text_brightness = 255
-        text_color = "#ffffff"
-
-        # Cycle ellipsis every 20 frames
-        ellipsis_count = (frame_idx // 20) % 4  # 0, 1, 2, 3
-        text_content = "updating" + ("." * ellipsis_count)
+        text_content = "reset OK"
         text_width = len(text_content) * char_width
         text_x = max(0, math.floor((width - text_width) / 2))
         text_y = height - text_height - 2
+
+        # Gentle pulse
+        text_alpha = (math.sin(frame_idx * 0.2) + 1) / 2
+        text_brightness = int(180 + 75 * text_alpha)
+        hex_g = to_hex_string(text_brightness)
+        text_color = "#00" + hex_g + "00"
 
         elements.append(
             render.Padding(
@@ -83,49 +83,55 @@ def create_cloud_animation(width, height):
 
     return frames
 
-def create_download_arrow(width, height, frame_idx):
-    """Create animated download arrow bouncing up and down"""
+def create_success_rings(width, height, frame_idx):
+    """Create expanding rings for success effect"""
     elements = []
 
     center_x = width // 2
     center_y = height // 2
 
-    # Bounce animation
-    bounce_offset = int(3 * math.sin(frame_idx * 0.3))
-    arrow_y = center_y + bounce_offset
+    # Two rings expanding outward
+    for ring_idx in range(2):
+        ring_frame = frame_idx - ring_idx * 5
 
-    # Arrow shaft (vertical line)
-    for y in range(8):
-        elements.append(
+        if ring_frame >= 0 and ring_frame < 20:
+            radius = 4 + int(ring_frame * 1.5)
+
+            # Fade out as ring expands
+            opacity = int(255 * (1 - ring_frame / 20.0))
+            hex_g = to_hex_string(opacity)
+            ring_color = "#00" + hex_g + "00"
+
+            elements.extend(draw_circle(center_x, center_y, radius, ring_color))
+
+    return elements
+
+def draw_circle(cx, cy, radius, color):
+    """Draw a circle outline"""
+    pixels = []
+
+    if radius < 1:
+        return pixels
+
+    num_points = max(12, radius * 6)
+
+    for i in range(num_points):
+        angle = (i * 360 / num_points) * math.pi / 180
+        x = int(cx + radius * math.cos(angle))
+        y = int(cy + radius * math.sin(angle))
+
+        pixels.append(
             render.Padding(
-                pad = (center_x - 1, arrow_y - 8 + y, 0, 0),
-                child = render.Box(
-                    width = 2,
-                    height = 1,
-                    color = "#00aaff",
-                ),
-            )
-        )
-
-    # Arrow head (pointing down)
-    arrowhead_points = [
-        (-4, -2), (-3, -1), (-2, 0), (-1, 1), (0, 2),
-        (4, -2), (3, -1), (2, 0), (1, 1), (0, 2),
-    ]
-
-    for dx, dy in arrowhead_points:
-        elements.append(
-            render.Padding(
-                pad = (center_x + dx, arrow_y + dy, 0, 0),
+                pad = (x, y, 0, 0),
                 child = render.Box(
                     width = 1,
                     height = 1,
-                    color = "#00aaff",
+                    color = color,
                 ),
             )
         )
 
-    return elements
+    return pixels
 
 def get_schema():
     return schema.Schema(
@@ -139,7 +145,7 @@ def get_schema():
                 default = DEFAULT_WIDTH,
             ),
             schema.Text(
-                id = "height", 
+                id = "height",
                 name = "Display Height",
                 desc = "Height of the display in pixels",
                 icon = "ruler",

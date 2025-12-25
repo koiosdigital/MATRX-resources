@@ -11,61 +11,60 @@ def to_hex_string(value):
         value = 0
     elif value > 255:
         value = 255
-    
+
     hex_chars = "0123456789abcdef"
     high = math.floor(value / 16)
     low = value % 16
     return hex_chars[high] + hex_chars[low]
 
-
 def main(config):
     width = int(config.str("width", DEFAULT_WIDTH))
     height = int(config.str("height", DEFAULT_HEIGHT))
-    
-    # Create cloud animation frames
-    cloud_frames = create_cloud_animation(width, height)
-    
+
+    frames = create_bluetooth_animation(width, height)
+
     return render.Root(
-        delay = 120,  # 120ms per frame for smooth cloud drift
+        delay = 80,  # 80ms per frame for smooth animation
         child = render.Animation(
-            children = cloud_frames,
+            children = frames,
         ),
     )
 
-def create_cloud_animation(width, height):
-    """Creates update checking animation with download progress and arrows"""
+def create_bluetooth_animation(width, height):
+    """Creates Bluetooth connection animation with icon and scanning waves"""
     frames = []
-    num_frames = 60
+    num_frames = 30  # 30 frames for smooth loop
 
     for frame_idx in range(num_frames):
         elements = []
 
-        # Dark purple/blue background
+        # Dark blue background
         elements.append(
             render.Box(
                 width = width,
                 height = height,
-                color = "#0a0014",
+                color = "#001020",
             )
         )
 
-        # Animated download arrow
-        elements.extend(create_download_arrow(width, height, frame_idx))
+        # Add scanning waves effect
+        elements.extend(create_scanning_waves(width, height, frame_idx))
 
-        # Text with animated ellipsis
+        # Add pulsing text
+        text_alpha = (math.sin(frame_idx * 0.2) + 1) / 2
+        text_brightness = int(180 + 75 * text_alpha)
+        hex_brightness = to_hex_string(text_brightness)
+        text_color = "#" + hex_brightness + hex_brightness + "ff"
+
+        # Choose font based on screen size
         font_name = "tom-thumb" if width < 32 or height < 32 else "6x13"
         char_width = 4 if font_name == "tom-thumb" else 6
         text_height = 5 if font_name == "tom-thumb" else 13
 
-        text_brightness = 255
-        text_color = "#ffffff"
-
-        # Cycle ellipsis every 20 frames
-        ellipsis_count = (frame_idx // 20) % 4  # 0, 1, 2, 3
-        text_content = "updating" + ("." * ellipsis_count)
+        text_content = "setup"
         text_width = len(text_content) * char_width
         text_x = max(0, math.floor((width - text_width) / 2))
-        text_y = height - text_height - 2
+        text_y = max(0, math.floor((height - text_height) / 2))
 
         elements.append(
             render.Padding(
@@ -83,49 +82,61 @@ def create_cloud_animation(width, height):
 
     return frames
 
-def create_download_arrow(width, height, frame_idx):
-    """Create animated download arrow bouncing up and down"""
+def create_scanning_waves(width, height, frame_idx):
+    """Create expanding circular waves for scanning effect"""
     elements = []
 
     center_x = width // 2
     center_y = height // 2
 
-    # Bounce animation
-    bounce_offset = int(3 * math.sin(frame_idx * 0.3))
-    arrow_y = center_y + bounce_offset
+    # Create 3 waves at different phases
+    for wave_idx in range(3):
+        # Stagger waves
+        wave_frame = (frame_idx + wave_idx * 10) % 30
 
-    # Arrow shaft (vertical line)
-    for y in range(8):
-        elements.append(
+        # Wave expands from center
+        max_radius = min(width, height) // 2
+        radius = int((wave_frame / 30.0) * max_radius)
+
+        # Fade out as wave expands
+        opacity = int(255 * (1 - wave_frame / 30.0))
+
+        # Draw circular wave using pixel approximation
+        elements.extend(draw_circle(center_x, center_y, radius, opacity))
+
+    return elements
+
+def draw_circle(cx, cy, radius, opacity):
+    """Draw a circle using pixel approximation"""
+    pixels = []
+
+    if radius < 1:
+        return pixels
+
+    # Use Bresenham-like circle drawing
+    num_points = max(8, radius * 6)  # More points for larger circles
+
+    for i in range(num_points):
+        angle = (i * 360 / num_points) * math.pi / 180
+        x = int(cx + radius * math.cos(angle))
+        y = int(cy + radius * math.sin(angle))
+
+        # Bluetooth blue color with opacity
+        blue = min(255, 180 + opacity // 3)
+        hex_color = "#00" + to_hex_string(opacity // 2) + to_hex_string(blue)
+
+        pixels.append(
             render.Padding(
-                pad = (center_x - 1, arrow_y - 8 + y, 0, 0),
-                child = render.Box(
-                    width = 2,
-                    height = 1,
-                    color = "#00aaff",
-                ),
-            )
-        )
-
-    # Arrow head (pointing down)
-    arrowhead_points = [
-        (-4, -2), (-3, -1), (-2, 0), (-1, 1), (0, 2),
-        (4, -2), (3, -1), (2, 0), (1, 1), (0, 2),
-    ]
-
-    for dx, dy in arrowhead_points:
-        elements.append(
-            render.Padding(
-                pad = (center_x + dx, arrow_y + dy, 0, 0),
+                pad = (x, y, 0, 0),
                 child = render.Box(
                     width = 1,
                     height = 1,
-                    color = "#00aaff",
+                    color = hex_color,
                 ),
             )
         )
 
-    return elements
+    return pixels
 
 def get_schema():
     return schema.Schema(
@@ -139,7 +150,7 @@ def get_schema():
                 default = DEFAULT_WIDTH,
             ),
             schema.Text(
-                id = "height", 
+                id = "height",
                 name = "Display Height",
                 desc = "Height of the display in pixels",
                 icon = "ruler",
