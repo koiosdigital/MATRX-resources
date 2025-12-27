@@ -31,27 +31,19 @@ def main(config):
     )
 
 def create_success_animation(width, height):
-    """Creates factory reset success animation with checkmark and expanding rings"""
+    """Creates factory reset success animation with checkmark and text"""
     frames = []
     num_frames = 30
 
     for frame_idx in range(num_frames):
         elements = []
 
-        # Dark green background
-        elements.append(
-            render.Box(
-                width = width,
-                height = height,
-                color = "#001a00",
-            )
-        )
+        # Checkmark at same position as arrow in check_updates (center_y - 3)
+        center_x = width // 2
+        center_y = (height // 2) - 3
+        elements.extend(create_checkmark(center_x, center_y))
 
-        # Expanding success rings
-        if frame_idx < 20:
-            elements.extend(create_success_rings(width, height, frame_idx))
-
-        # Success text
+        # Success text at bottom
         font_name = "tom-thumb" if width < 32 or height < 32 else "6x13"
         char_width = 4 if font_name == "tom-thumb" else 6
         text_height = 5 if font_name == "tom-thumb" else 13
@@ -83,55 +75,46 @@ def create_success_animation(width, height):
 
     return frames
 
-def create_success_rings(width, height, frame_idx):
-    """Create expanding rings for success effect"""
+def create_checkmark(center_x, center_y):
+    """Create checkmark icon at given position"""
     elements = []
 
-    center_x = width // 2
-    center_y = height // 2
+    # Checkmark shape - short left stroke and longer right stroke
+    # Left stroke (going down-right)
+    left_stroke = [
+        (-4, -1), (-3, 0), (-2, 1), (-1, 2)
+    ]
 
-    # Two rings expanding outward
-    for ring_idx in range(2):
-        ring_frame = frame_idx - ring_idx * 5
+    # Right stroke (going up-right from the bottom of left stroke)
+    right_stroke = [
+        (0, 1), (1, 0), (2, -1), (3, -2), (4, -3), (5, -4)
+    ]
 
-        if ring_frame >= 0 and ring_frame < 20:
-            radius = 4 + int(ring_frame * 1.5)
-
-            # Fade out as ring expands
-            opacity = int(255 * (1 - ring_frame / 20.0))
-            hex_g = to_hex_string(opacity)
-            ring_color = "#00" + hex_g + "00"
-
-            elements.extend(draw_circle(center_x, center_y, radius, ring_color))
-
-    return elements
-
-def draw_circle(cx, cy, radius, color):
-    """Draw a circle outline"""
-    pixels = []
-
-    if radius < 1:
-        return pixels
-
-    num_points = max(12, radius * 6)
-
-    for i in range(num_points):
-        angle = (i * 360 / num_points) * math.pi / 180
-        x = int(cx + radius * math.cos(angle))
-        y = int(cy + radius * math.sin(angle))
-
-        pixels.append(
+    for dx, dy in left_stroke:
+        elements.append(
             render.Padding(
-                pad = (x, y, 0, 0),
+                pad = (center_x + dx, center_y + dy, 0, 0),
                 child = render.Box(
-                    width = 1,
-                    height = 1,
-                    color = color,
+                    width = 2,
+                    height = 2,
+                    color = "#00ff00",
                 ),
             )
         )
 
-    return pixels
+    for dx, dy in right_stroke:
+        elements.append(
+            render.Padding(
+                pad = (center_x + dx, center_y + dy, 0, 0),
+                child = render.Box(
+                    width = 2,
+                    height = 2,
+                    color = "#00ff00",
+                ),
+            )
+        )
+
+    return elements
 
 def get_schema():
     return schema.Schema(

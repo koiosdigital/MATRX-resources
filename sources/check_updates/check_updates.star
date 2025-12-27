@@ -11,12 +11,11 @@ def to_hex_string(value):
         value = 0
     elif value > 255:
         value = 255
-    
+
     hex_chars = "0123456789abcdef"
     high = math.floor(value / 16)
     low = value % 16
     return hex_chars[high] + hex_chars[low]
-
 
 def main(config):
     width = int(config.str("width", DEFAULT_WIDTH))
@@ -39,15 +38,6 @@ def create_cloud_animation(width, height):
 
     for frame_idx in range(num_frames):
         elements = []
-
-        # Dark purple/blue background
-        elements.append(
-            render.Box(
-                width = width,
-                height = height,
-                color = "#0a0014",
-            )
-        )
 
         # Animated download arrow
         elements.extend(create_download_arrow(width, height, frame_idx))
@@ -88,7 +78,7 @@ def create_download_arrow(width, height, frame_idx):
     elements = []
 
     center_x = width // 2
-    center_y = height // 2
+    center_y = (height // 2) - 3
 
     # Bounce animation
     bounce_offset = int(3 * math.sin(frame_idx * 0.3))
@@ -98,9 +88,9 @@ def create_download_arrow(width, height, frame_idx):
     for y in range(8):
         elements.append(
             render.Padding(
-                pad = (center_x - 1, arrow_y - 8 + y, 0, 0),
+                pad = (center_x, arrow_y - 8 + y, 0, 0),
                 child = render.Box(
-                    width = 2,
+                    width = 1,
                     height = 1,
                     color = "#00aaff",
                 ),

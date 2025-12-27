@@ -31,112 +31,56 @@ def main(config):
     )
 
 def create_hold_animation(width, height):
-    """Creates factory reset hold animation with filling progress circle"""
+    """Creates factory reset hold animation with progress bar at bottom"""
     frames = []
-    num_frames = 50  # 5 second hold simulation
+    num_frames = 30  # 3 seconds at 100ms per frame
 
     for frame_idx in range(num_frames):
         elements = []
 
-        # Dark red/orange background (warning color)
-        elements.append(
-            render.Box(
-                width = width,
-                height = height,
-                color = "#1a0a00",
-            )
-        )
+        # Calculate progress (0.0 to 1.0)
+        progress = frame_idx / (num_frames - 1)
 
-        # Determine layout based on screen aspect ratio
-        is_rectangular = width > height * 1.5
+        # Center position for exclamation (slightly above center to make room for bar)
+        center_x = width // 2
+        center_y = (height // 2) - 2
 
-        if is_rectangular:
-            # Rectangular: exclamation on left, text on right
-            elements.extend(create_horizontal_layout(width, height, frame_idx))
-        else:
-            # Square/portrait: exclamation in center, text at bottom
-            elements.extend(create_vertical_layout(width, height, frame_idx))
+        # Draw exclamation mark in center
+        elements.extend(create_warning_icon(center_x, center_y))
+
+        # Draw progress bar at bottom that grows from center
+        elements.extend(create_progress_bar(width, height, progress))
 
         frame = render.Stack(children = elements)
         frames.append(frame)
 
     return frames
 
-def create_vertical_layout(width, height, frame_idx):
-    """Create vertical layout for square/portrait screens"""
+def create_progress_bar(width, height, progress):
+    """Create progress bar at bottom that grows from center"""
     elements = []
 
-    # Warning icon in center
-    elements.extend(create_warning_icon(width // 2, height // 2))
+    bar_height = 3
+    bar_y = height - bar_height - 1  # 1px from bottom
 
-    # Text at bottom
-    font_name = "tom-thumb" if width < 32 or height < 32 else "6x13"
-    char_width = 4 if font_name == "tom-thumb" else 6
-    text_height = 5 if font_name == "tom-thumb" else 13
+    # Calculate bar width based on progress (grows from center)
+    max_bar_width = width - 4  # Leave 2px margin on each side
+    current_bar_width = int(max_bar_width * progress)
 
-    # Pulsing text
-    text_alpha = (math.sin(frame_idx * 0.3) + 1) / 2
-    text_brightness = int(200 + 55 * text_alpha)
+    if current_bar_width > 0:
+        # Center the bar horizontally
+        bar_x = (width - current_bar_width) // 2
 
-    text_content = "hold"
-    text_width = len(text_content) * char_width
-    text_x = max(0, math.floor((width - text_width) / 2))
-    text_y = height - text_height - 2
-
-    hex_r = to_hex_string(text_brightness)
-    hex_g = to_hex_string(text_brightness // 2)
-    text_color = "#" + hex_r + hex_g + "00"
-
-    elements.append(
-        render.Padding(
-            pad = (text_x, text_y, 0, 0),
-            child = render.Text(
-                content = text_content,
-                color = text_color,
-                font = font_name
-            ),
+        elements.append(
+            render.Padding(
+                pad = (bar_x, bar_y, 0, 0),
+                child = render.Box(
+                    width = current_bar_width,
+                    height = bar_height,
+                    color = "#ff6600",
+                ),
+            )
         )
-    )
-
-    return elements
-
-def create_horizontal_layout(width, height, frame_idx):
-    """Create horizontal layout for rectangular screens"""
-    elements = []
-
-    # Icon on left side
-    icon_x = width // 4
-    icon_y = height // 2
-    elements.extend(create_warning_icon(icon_x, icon_y))
-
-    # Text on right side
-    font_name = "tom-thumb" if width < 32 or height < 32 else "6x13"
-    char_width = 4 if font_name == "tom-thumb" else 6
-    text_height = 5 if font_name == "tom-thumb" else 13
-
-    # Pulsing text
-    text_alpha = (math.sin(frame_idx * 0.3) + 1) / 2
-    text_brightness = int(200 + 55 * text_alpha)
-
-    text_content = "hold"
-    text_width = len(text_content) * char_width
-    text_x = (width // 2) + (width // 4) - (text_width // 2)
-    text_y = max(0, math.floor((height - text_height) / 2))
-
-    hex_r = to_hex_string(text_brightness)
-    hex_g = to_hex_string(text_brightness // 2)
-    text_color = "#" + hex_r + hex_g + "00"
-
-    elements.append(
-        render.Padding(
-            pad = (text_x, text_y, 0, 0),
-            child = render.Text(
-                content = text_content,
-                color = text_color,
-                font = font_name
-            ),
-        )
-    )
 
     return elements
 

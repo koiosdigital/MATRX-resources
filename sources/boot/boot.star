@@ -35,15 +35,6 @@ def create_boot_animation(width, height):
     for frame_idx in range(total_frames):
         elements = []
         
-        # Black background
-        elements.append(
-            render.Box(
-                width = width,
-                height = height,
-                color = "#000000",
-            )
-        )
-        
         # Show typeahead text for first 8 frames, then full text
         if frame_idx < 8:
             elements.extend(create_typeahead_text(width, height, frame_idx, font_name))

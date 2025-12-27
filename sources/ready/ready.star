@@ -12,12 +12,11 @@ def to_hex_string(value):
         value = 0
     elif value > 255:
         value = 255
-    
+
     hex_chars = "0123456789abcdef"
     high = math.floor(value / 16)
     low = value % 16
     return hex_chars[high] + hex_chars[low]
-
 
 def main(config):
     width = int(config.str("width", DEFAULT_WIDTH))
@@ -40,15 +39,6 @@ def create_cloud_animation(width, height):
 
     for frame_idx in range(num_frames):
         elements = []
-
-        # Dark background
-        elements.append(
-            render.Box(
-                width = width,
-                height = height,
-                color = "#000000",
-            )
-        )
 
         # Matrix-style rain effect in background
         elements.extend(create_matrix_rain(width, height, frame_idx))

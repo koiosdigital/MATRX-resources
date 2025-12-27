@@ -118,14 +118,6 @@ def create_cloud_animation(width, height):
     for frame_idx in range(num_frames):
         cloud_elements = []
 
-        cloud_elements.append(
-            render.Box(
-                width = width,
-                height = height,
-                color = "#0a0a1a",
-            )
-        )
-
         for layer_idx, layer_clouds in enumerate(cloud_instances):
             for cloud in layer_clouds:
                 clouds = create_moving_cloud(width, height, frame_idx, cloud)
@@ -141,7 +133,7 @@ def create_cloud_animation(width, height):
 
         # Cycle ellipsis every 20 frames
         ellipsis_count = (frame_idx // 20) % 4  # 0, 1, 2, 3
-        text_content = "connecting" + ("." * ellipsis_count)
+        text_content = "connecting"
         text_width = len(text_content) * char_width
         text_x = max(0, math.floor((width - text_width) / 2))
         text_y = max(0, math.floor((height - text_height) / 2))

@@ -98,8 +98,10 @@ for (size_t i = 0; i < count; i++) {
 - `factory_reset_hold` - Factory reset hold indicator
 - `factory_reset_success` - Factory reset success animation
 - `keygen` - Key generation animation
+- `pinned` - Pinned state with pushpin down
 - `ready` - Ready state indicator
 - `setup` - Setup mode animation
+- `unpinned` - Unpinned state with pushpin up
 
 ## Adding New Applets
 
