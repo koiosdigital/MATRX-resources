@@ -1,5 +1,8 @@
 """
-MATRX Boot Animation - Simplified version with shooting fireworks
+MATRX Boot Variant 2 - Pixel rain assembly
+Every pixel of a chunky MATRX wordmark falls from the sky and locks
+into place left-to-right, then a cyan shimmer sweeps across the
+finished logo.
 """
 
 load("render.star", "render")
@@ -10,180 +13,166 @@ load("random.star", "random")
 DEFAULT_WIDTH = "64"
 DEFAULT_HEIGHT = "32"
 
+TOTAL_FRAMES = 40
+FALL_DURATION = 8  # frames for one pixel to drop into place
+
+# Same palette as the OG boot fireworks
+RAINBOW = ["#ff0000", "#ff8800", "#ffff00", "#00ff00", "#0088ff", "#8800ff"]
+
+# 5x5 pixel font for the MATRX wordmark
+LETTERS = {
+    "M": [
+        "#...#",
+        "##.##",
+        "#.#.#",
+        "#...#",
+        "#...#",
+    ],
+    "A": [
+        ".###.",
+        "#...#",
+        "#####",
+        "#...#",
+        "#...#",
+    ],
+    "T": [
+        "#####",
+        "..#..",
+        "..#..",
+        "..#..",
+        "..#..",
+    ],
+    "R": [
+        "####.",
+        "#...#",
+        "####.",
+        "#..#.",
+        "#...#",
+    ],
+    "X": [
+        "#...#",
+        ".#.#.",
+        "..#..",
+        ".#.#.",
+        "#...#",
+    ],
+}
+
+def to_hex_string(value):
+    """Convert integer to 2-digit hex string"""
+    if value < 0:
+        value = 0
+    elif value > 255:
+        value = 255
+
+    hex_chars = "0123456789abcdef"
+    high = math.floor(value / 16)
+    low = value % 16
+    return hex_chars[high] + hex_chars[low]
+
 def main(config):
-    """Main entry point for the boot animation"""
     width = int(config.get("width", DEFAULT_WIDTH))
     height = int(config.get("height", DEFAULT_HEIGHT))
-    
-    frames = create_boot_animation(width, height)
-    
+
+    frames = create_assembly_animation(width, height)
+
     return render.Root(
-        delay = 100,  # 100ms per frame for smooth animation
+        delay = 70,  # 70ms per frame
         child = render.Animation(children = frames),
     )
 
-def create_boot_animation(width, height):
-    """Creates MATRX boot animation with typeahead text and fireworks"""
+def build_target_pixels(width, height):
+    """Compute the final resting position for every logo pixel"""
+    word = "MATRX"
+    scale = max(1, min(width // 32, height // 8))
+
+    letter_width = 5 * scale
+    letter_gap = scale
+    word_width = len(word) * letter_width + (len(word) - 1) * letter_gap
+    word_height = 5 * scale
+
+    origin_x = max(0, (width - word_width) // 2)
+    origin_y = max(0, (height - word_height) // 2)
+
+    pixels = []
+    for letter_idx in range(len(word)):
+        bitmap = LETTERS[word[letter_idx]]
+        letter_x = origin_x + letter_idx * (letter_width + letter_gap)
+
+        for row_idx, row in enumerate(bitmap):
+            for col_idx in range(len(row)):
+                if row[col_idx] == "#":
+                    target_x = letter_x + col_idx * scale
+                    target_y = origin_y + row_idx * scale
+
+                    # Left-to-right wave, plus a little randomness per pixel
+                    random.seed(target_x * 31 + target_y * 7)
+                    start_frame = (target_x * 16) // max(1, width) + random.number(0, 4)
+
+                    pixels.append({
+                        "x": target_x,
+                        "y": target_y,
+                        "start": start_frame,
+                    })
+
+    return pixels, scale
+
+def create_assembly_animation(width, height):
     frames = []
-    
-    # Two phases: typeahead (8 frames) + fireworks (8 frames)
-    total_frames = 16
-    
-    # Choose font based on screen size
-    font_name = "tom-thumb" if width < 32 else "6x13"
-    
-    for frame_idx in range(total_frames):
-        elements = []
-        
-        # Show typeahead text for first 8 frames, then full text
-        if frame_idx < 8:
-            elements.extend(create_typeahead_text(width, height, frame_idx, font_name))
-        else:
-            elements.extend(create_full_text(width, height, font_name))
-        
-        # Start fireworks from frame 3 onwards (when "MAT" appears)
-        if frame_idx >= 3:
-            firework_frame = frame_idx - 3
-            elements.extend(create_old_fireworks(width, height, firework_frame))
-        
-        frame = render.Stack(children = elements)
-        frames.append(frame)
-    
-    return frames
+    pixels, scale = build_target_pixels(width, height)
 
-def create_typeahead_text(width, height, frame_idx, font_name):
-    """Create typeahead effect for MATRX text"""
-    elements = []
-    
-    # Build text progressively
-    matrx_text = "MATRX"
-    if frame_idx < 5:
-        current_text = matrx_text[:frame_idx + 1]
-    else:
-        current_text = matrx_text
-    
-    # Calculate accurate text dimensions based on font
-    if font_name == "tom-thumb":
-        char_width = 4  # tom-thumb is approximately 4px wide per char
-        text_height = 5  # tom-thumb is 5px tall
-    else:
-        char_width = 6  # 6x13 is 6px wide per char
-        text_height = 13  # 6x13 is 13px tall
-    
-    text_width = len(current_text) * char_width
-    
-    # Center both horizontally and vertically
-    text_x = max(0, math.floor((width - text_width) / 2))
-    text_y = max(0, math.floor((height - text_height) / 2))
-    
-    # Show current text in white
-    elements.append(
-        render.Padding(
-            pad = (text_x, text_y, 0, 0),
-            child = render.Text(
-                content = current_text,
-                color = "#ffffff",
-                font = font_name
-            ),
-        )
-    )
-    
-    return elements
+    # First frame where every pixel has finished falling
+    assembled_at = 0
+    for px in pixels:
+        landing = px["start"] + FALL_DURATION
+        if landing > assembled_at:
+            assembled_at = landing
 
-def create_full_text(width, height, font_name):
-    """Create full MATRX text"""
-    elements = []
-    
-    # Calculate accurate text dimensions based on font
-    text_content = "MATRX"
-    if font_name == "tom-thumb":
-        char_width = 4  # tom-thumb is approximately 4px wide per char
-        text_height = 5  # tom-thumb is 5px tall
-    else:
-        char_width = 6  # 6x13 is 6px wide per char
-        text_height = 13  # 6x13 is 13px tall
-    
-    text_width = len(text_content) * char_width
-    
-    # Center both horizontally and vertically
-    text_x = max(0, math.floor((width - text_width) / 2))
-    text_y = max(0, math.floor((height - text_height) / 2))
-    
-    # Show full MATRX text in white
-    elements.append(
-        render.Padding(
-            pad = (text_x, text_y, 0, 0),
-            child = render.Text(
-                content = text_content,
-                color = "#ffffff",
-                font = font_name
-            ),
-        )
-    )
-    
-    return elements
+    for frame_idx in range(TOTAL_FRAMES):
+        elements = [
+            render.Box(width = width, height = height, color = "#000000"),
+        ]
 
-def create_old_fireworks(width, height, frame_idx):
-    """Create old-style rainbow firework explosions"""
-    elements = []
-    
-    # Multiple firework explosion centers
-    firework_centers = [
-        (width // 4, height // 3),
-        (3 * width // 4, height // 4),
-        (width // 2, 3 * height // 4),
-        (width // 6, 2 * height // 3),
-        (5 * width // 6, height // 2)
-    ]
-    
-    for fw_idx, (center_x, center_y) in enumerate(firework_centers):
-        # Stagger firework timing
-        firework_frame = (frame_idx - fw_idx) % 10
-        
-        if firework_frame >= 0 and firework_frame < 8:
-            # Create expanding circle of sparkles
-            radius = firework_frame + 1
-            num_sparkles = 8 + firework_frame * 2  # More sparkles as it expands
-            
-            for i in range(num_sparkles):
-                angle = (i * 360 / num_sparkles) * math.pi / 180
-                
-                # Calculate sparkle position
-                spark_x = int(center_x + radius * math.cos(angle))
-                spark_y = int(center_y + radius * math.sin(angle))
-                
-                # Rainbow colors based on angle
-                hue_step = i * 6 // num_sparkles  # 0-5 for 6 colors
-                if hue_step == 0:
-                    color = "#ff0000"  # Red
-                elif hue_step == 1:
-                    color = "#ff8800"  # Orange  
-                elif hue_step == 2:
-                    color = "#ffff00"  # Yellow
-                elif hue_step == 3:
-                    color = "#00ff00"  # Green
-                elif hue_step == 4:
-                    color = "#0088ff"  # Blue
-                else:
-                    color = "#8800ff"  # Purple
-                
-                # Only draw sparkles within screen bounds
-                if spark_x >= 0 and spark_x < width and spark_y >= 0 and spark_y < height:
-                    # Sparkle gets smaller as firework ages
-                    sparkle_size = max(1, 3 - firework_frame // 3)
-                    
-                    elements.append(
-                        render.Padding(
-                            pad = (spark_x, spark_y, 0, 0),
-                            child = render.Box(
-                                width = sparkle_size,
-                                height = sparkle_size,
-                                color = color,
-                            ),
-                        )
+        for px in pixels:
+            if frame_idx < px["start"]:
+                continue  # not yet released
+
+            progress = (frame_idx - px["start"]) / FALL_DURATION
+            if progress > 1:
+                progress = 1
+
+            if progress < 1:
+                # Ease-in fall (gravity), dimmer while airborne
+                eased = progress * progress
+                y = int(-scale - 2 + (px["y"] + scale + 2) * eased)
+                color = "#8a8a8a"
+            else:
+                y = px["y"]
+                color = "#ffffff"
+
+                # Rainbow shimmer sweep once fully assembled
+                if frame_idx > assembled_at:
+                    sweep_x = (frame_idx - assembled_at) * (width // 8) - width // 4
+                    band_width = max(1, width // 4)
+                    dist = abs(px["x"] - sweep_x)
+                    if dist < band_width:
+                        color = RAINBOW[(dist * len(RAINBOW)) // band_width]
+
+            if y + scale > 0:
+                elements.append(
+                    render.Padding(
+                        pad = (px["x"], max(0, y), 0, 0),
+                        child = render.Box(
+                            width = scale,
+                            height = scale,
+                            color = color,
+                        ),
                     )
-    
-    return elements
+                )
+
+        frames.append(render.Stack(children = elements))
+
+    return frames
 
 def get_schema():
     return schema.Schema(
@@ -197,7 +186,7 @@ def get_schema():
                 default = DEFAULT_WIDTH,
             ),
             schema.Text(
-                id = "height", 
+                id = "height",
                 name = "Display Height",
                 desc = "Height of the display in pixels",
                 icon = "ruler",

@@ -1,3 +1,10 @@
+"""
+MATRX Connecting Variant 2 - Fireflies
+Two fireflies blink out of sync on opposite sides of a night meadow,
+drift toward each other, and finally hover together blinking in
+perfect unison with little sparkles.
+"""
+
 load("render.star", "render")
 load("schema.star", "schema")
 load("math.star", "math")
@@ -5,6 +12,9 @@ load("random.star", "random")
 
 DEFAULT_WIDTH = "64"
 DEFAULT_HEIGHT = "32"
+
+NUM_FRAMES = 64
+MEET_FRAME = 40  # frame by which the fireflies are together
 
 def to_hex_string(value):
     """Convert integer to 2-digit hex string"""
@@ -18,193 +28,148 @@ def to_hex_string(value):
     low = value % 16
     return hex_chars[high] + hex_chars[low]
 
-def generate_cloud_shape(width, height, seed):
-    """Algorithmically generate a cloud shape"""
-    random.seed(seed)
-
-    pattern = []
-
-    center_x = math.floor(width / 2)
-    center_y = math.floor(height / 2)
-
-    for y in range(height):
-        row = []
-        for x in range(width):
-            dx = x - center_x
-            dy = y - center_y
-            dist_sq = dx * dx + dy * dy
-            max_dist_sq = int(math.pow(min(width, height) / 2, 2))
-
-            noise = random.number(0, 100)
-
-            base_prob = max(0, 100 - math.floor((dist_sq * 100) / max_dist_sq))
-
-            final_prob = base_prob + math.floor((noise - 50) / 3)
-
-            if abs(dy) < math.floor(height / 4):
-                final_prob += 20
-
-            threshold = random.number(30, 70)
-
-            if final_prob > threshold:
-                row.append(1)
-            else:
-                row.append(0)
-
-        pattern.append(row)
-
-    return pattern
+def block(x, y, color, size):
+    return render.Padding(
+        pad = (x, y, 0, 0),
+        child = render.Box(width = size, height = size, color = color),
+    )
 
 def main(config):
     width = int(config.str("width", DEFAULT_WIDTH))
     height = int(config.str("height", DEFAULT_HEIGHT))
 
-    cloud_frames = create_cloud_animation(width, height)
+    frames = create_firefly_animation(width, height)
 
     return render.Root(
-        delay = 120,  # 120ms per frame for smooth cloud drift
-        child = render.Animation(
-            children = cloud_frames,
-        ),
+        delay = 100,  # 100ms per frame
+        child = render.Animation(children = frames),
     )
 
-def create_cloud_animation(width, height):
-    """Creates retro 8-bit style cloud animation for 'connecting to cloud'"""
+def draw_firefly(x, y, glow, size):
+    """Chunky body with a tail-light; halo blooms when glowing bright"""
+    elements = []
+
+    elements.append(block(x, y, "#555544", size))
+
+    if glow > 30:
+        hex_val = to_hex_string(glow)
+        elements.append(block(x + size, y, "#" + hex_val + hex_val + "20", size))
+
+        if glow > 180:
+            halo_hex = to_hex_string(glow // 3)
+            halo = "#" + halo_hex + halo_hex + "10"
+            elements.append(block(x + size * 2, y, halo, size))
+            elements.append(block(x + size, y - size, halo, size))
+            elements.append(block(x + size, y + size, halo, size))
+            elements.append(block(x, y - size, halo, size))
+            elements.append(block(x, y + size, halo, size))
+
+    return elements
+
+def create_firefly_animation(width, height):
     frames = []
 
-    num_frames = 60
+    # Everything chunks up on bigger panels
+    scale = 2 if min(width, height) >= 64 else 1
+    fly_size = scale + 1
 
-    num_layers = 3
-    cloud_instances = []
+    meet_x = width // 2
+    meet_y = height // 4
 
-    for layer_idx in range(num_layers):
-        layer_clouds = []
-        random.seed(layer_idx * 100)
-        num_clouds_in_layer = random.number(2, 4)
+    for frame_idx in range(NUM_FRAMES):
+        elements = []
 
-        for cloud_idx in range(num_clouds_in_layer):
-            seed = layer_idx * 1000 + cloud_idx * 100
+        # A few dim stars
+        for star_idx in range(5):
+            random.seed(7700 + star_idx)
+            star_x = random.number(0, width - 1)
+            star_y = random.number(0, height // 3)
+            twinkle = (math.sin(frame_idx * 0.3 + star_idx * 2) + 1) / 2
+            hex_val = to_hex_string(int(50 + 90 * twinkle))
+            elements.append(block(star_x, star_y, "#" + hex_val + hex_val + hex_val, scale))
 
-            random.seed(seed)
+        # Grass along the bottom, taller on bigger panels
+        for x in range(0, width, scale):
+            random.seed(7800 + x)
+            blade = random.number(1, 2 + scale)
+            for blade_y in range(blade):
+                shade = to_hex_string(40 + blade_y * 12)
+                elements.append(block(x, height - (blade_y + 1) * scale, "#10" + shade + "10", scale))
 
-            cloud_width = random.number(14, 45)
-            cloud_height = random.number(15, 30)
+        # Message
+        elements.extend(create_message(width, height, frame_idx))
 
-            start_x = random.number(0, width + 40) - 20
+        # How far along the courtship we are (0 = apart, 1 = together)
+        progress = min(1.0, frame_idx / MEET_FRAME)
+        ease = progress * progress * (3 - 2 * progress)  # smoothstep
 
-            max_y = max(0, height - cloud_height)
-            start_y = random.number(0, max_y)
+        wobble_y = 3 * scale * math.sin(frame_idx * 0.5)
 
-            speed = random.number(20, 80) / 100.0
-            opacity = random.number(40, 80) / 100.0
+        # Left firefly: blinks fast at first, settles into the shared rhythm
+        left_home = 2 + scale
+        left_x = int(left_home + (meet_x - fly_size * 2 - left_home) * ease)
+        left_y = int(meet_y + (1 - ease) * (height // 3) + wobble_y * (1 - ease * 0.7))
+        left_rate = 0.9 - 0.4 * ease
+        left_glow = int(255 * max(0.0, math.sin(frame_idx * left_rate)))
 
-            cloud_pattern = generate_cloud_shape(cloud_width, cloud_height, seed)
+        # Right firefly: blinks slow at first
+        right_home = width - 3 - fly_size * 2
+        right_x = int(right_home - (right_home - meet_x - fly_size) * ease)
+        right_y = int(meet_y + (1 - ease) * (height // 4) - wobble_y * (1 - ease * 0.7))
+        right_rate = 0.3 + 0.2 * ease
+        right_glow = int(255 * max(0.0, math.sin(frame_idx * right_rate)))
 
-            base_color = 80 + layer_idx * 20
+        # Once together, they pulse as one
+        if frame_idx >= MEET_FRAME:
+            unison = int(255 * max(0.0, math.sin(frame_idx * 0.5)))
+            left_glow = unison
+            right_glow = unison
 
-            cloud_instance = {
-                "start_x": start_x,
-                "start_y": start_y,
-                "speed": speed,
-                "opacity": opacity,
-                "pattern": cloud_pattern,
-                "base_color": base_color,
-            }
+            # Sparkles ring out on the bright beats
+            if unison > 200:
+                for spark_idx in range(4):
+                    angle = frame_idx * 0.7 + spark_idx * math.pi / 2
+                    spark_x = int(meet_x + 5 * scale * math.cos(angle))
+                    spark_y = int(meet_y + 4 * scale * math.sin(angle))
+                    if spark_x >= 0 and spark_x < width and spark_y >= 0:
+                        elements.append(block(spark_x, spark_y, "#ffff88", scale))
 
-            layer_clouds.append(cloud_instance)
+        elements.extend(draw_firefly(left_x, left_y, left_glow, fly_size))
+        elements.extend(draw_firefly(right_x, right_y, right_glow, fly_size))
 
-        cloud_instances.append(layer_clouds)
-
-    for frame_idx in range(num_frames):
-        cloud_elements = []
-
-        for layer_idx, layer_clouds in enumerate(cloud_instances):
-            for cloud in layer_clouds:
-                clouds = create_moving_cloud(width, height, frame_idx, cloud)
-                cloud_elements.extend(clouds)
-
-        text_brightness = 255
-        text_color = "#ffffff"
-
-        # Choose font based on screen size
-        font_name = "tom-thumb" if width < 32 or height < 32 else "6x13"
-        char_width = 4 if font_name == "tom-thumb" else 6
-        text_height = 5 if font_name == "tom-thumb" else 13
-
-        # Cycle ellipsis every 20 frames
-        ellipsis_count = (frame_idx // 20) % 4  # 0, 1, 2, 3
-        text_content = "connecting"
-        text_width = len(text_content) * char_width
-        text_x = max(0, math.floor((width - text_width) / 2))
-        text_y = max(0, math.floor((height - text_height) / 2))
-
-        cloud_elements.append(
-            render.Padding(
-                pad = (text_x, text_y, 0, 0),
-                child = render.Text(
-                    content = text_content,
-                    color = text_color,
-                    font = font_name
-                ),
-            )
-        )
-
-        frame = render.Stack(children = cloud_elements)
-        frames.append(frame)
+        frames.append(render.Stack(children = elements))
 
     return frames
 
-def create_moving_cloud(width, height, frame_idx, cloud_config):
-    """Creates a single moving cloud instance"""
-    clouds = []
+def create_message(width, height, frame_idx):
+    """Gently pulsing 'connecting' message"""
+    elements = []
 
-    drift_offset = (frame_idx * cloud_config["speed"]) % (width + 40)
-    current_x = int(cloud_config["start_x"] - drift_offset)
-    current_y = cloud_config["start_y"]
+    font_name = "tom-thumb" if width < 32 or height < 32 else "6x13"
+    char_width = 4 if font_name == "tom-thumb" else 6
+    text_height = 5 if font_name == "tom-thumb" else 13
 
-    if current_x > -20 and current_x < width + 10:
-        cloud_pixels = create_cloud_pixels(
-            current_x,
-            current_y,
-            cloud_config["pattern"],
-            cloud_config["base_color"],
-            cloud_config["opacity"]
+    text_content = "connecting"
+    text_width = len(text_content) * char_width
+    text_x = max(0, math.floor((width - text_width) / 2))
+    text_y = max(0, math.floor((height - text_height) / 2))
+
+    pulse = (math.sin(frame_idx * 0.2) + 1) / 2
+    brightness = int(150 + 105 * pulse)
+    hex_val = to_hex_string(brightness)
+
+    elements.append(
+        render.Padding(
+            pad = (text_x, text_y, 0, 0),
+            child = render.Text(
+                content = text_content,
+                color = "#" + hex_val + hex_val + hex_val,
+                font = font_name,
+            ),
         )
-        clouds.extend(cloud_pixels)
+    )
 
-    return clouds
-
-def create_cloud_pixels(start_x, start_y, pattern, base_color, opacity):
-    """Creates individual pixels for a cloud shape"""
-    pixels = []
-
-    for row_idx, row in enumerate(pattern):
-        for col_idx, pixel in enumerate(row):
-            if pixel == 1:
-                x = start_x + col_idx
-                y = start_y + row_idx
-
-                color_variation = int(base_color * opacity)
-                color_variation += (row_idx + col_idx) % 20 - 10
-                color_variation = max(0, min(255, color_variation))
-
-                hex_r = to_hex_string(color_variation)
-                hex_g = to_hex_string(color_variation)
-                hex_b = to_hex_string(min(255, color_variation + 10))
-                pixel_color = "#" + hex_r + hex_g + hex_b
-
-                pixels.append(
-                    render.Padding(
-                        pad = (x, y, 0, 0),
-                        child = render.Box(
-                            width = 1,
-                            height = 1,
-                            color = pixel_color,
-                        ),
-                    )
-                )
-
-    return pixels
+    return elements
 
 def get_schema():
     return schema.Schema(
